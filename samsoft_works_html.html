@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAMSOFT WORKS - AI ROM Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ff00;
+            overflow-x: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 20px;
+            border-bottom: 3px solid #00ff00;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            text-shadow: 0 0 20px #00ff00;
+            animation: glow 2s ease-in-out infinite;
+        }
+        
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 20px #00ff00; }
+            50% { text-shadow: 0 0 40px #00ff00, 0 0 60px #00ff00; }
+        }
+        
+        .status-bar {
+            background: #1a1a1a;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #00ff00;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .pulse {
+            width: 10px;
+            height: 10px;
+            background: #00ff00;
+            border-radius: 50%;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            height: calc(100vh - 200px);
+        }
+        
+        .games-list {
+            background: #0f0f0f;
+            border-right: 2px solid #00ff00;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        
+        .game-item {
+            background: #1a1a1a;
+            border: 1px solid #00ff00;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .game-item:hover {
+            background: #252525;
+            border-color: #00ffff;
+            transform: translateX(5px);
+        }
+        
+        .game-item.selected {
+            background: #00ff0020;
+            border-color: #00ffff;
+        }
+        
+        .game-name {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #00ffff;
+            margin-bottom: 5px;
+        }
+        
+        .game-meta {
+            font-size: 0.85em;
+            color: #00ff00;
+            opacity: 0.8;
+        }
+        
+        .emulator-area {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .screen {
+            background: #000;
+            border: 4px solid #00ff00;
+            box-shadow: 0 0 30px #00ff0050;
+            position: relative;
+        }
+        
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            image-rendering: pixelated;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+        }
+        
+        button:hover {
+            background: #00ffff;
+            box-shadow: 0 0 20px #00ffff;
+        }
+        
+        button:active {
+            transform: scale(0.95);
+        }
+        
+        .game-info {
+            background: #1a1a1a;
+            border: 1px solid #00ff00;
+            padding: 15px;
+        }
+        
+        .info-title {
+            color: #00ffff;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #0a0a0a;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #00ff00;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>⚡ SAMSOFT WORKS ⚡</h1>
+        <p>AI-POWERED ROM GENERATION SYSTEM</p>
+    </div>
+    
+    <div class="status-bar">
+        <div class="status-indicator">
+            <div class="pulse"></div>
+            <span>AI GENERATOR: ACTIVE</span>
+        </div>
+        <div id="gameCount">GAMES GENERATED: 0</div>
+        <div id="timestamp">SYSTEM TIME: --:--:--</div>
+    </div>
+    
+    <div class="container">
+        <div class="games-list" id="gamesList"></div>
+        
+        <div class="emulator-area">
+            <div class="screen">
+                <canvas ref="canvas" id="gameCanvas" width="512" height="480"></canvas>
+            </div>
+            
+            <div class="controls">
+                <button id="playBtn">▶ PLAY</button>
+                <button id="pauseBtn">⏸ PAUSE</button>
+                <button id="resetBtn">↻ RESET</button>
+                <button id="downloadBtn">⬇ DOWNLOAD ROM</button>
+            </div>
+            
+            <div class="game-info" id="gameInfo">
+                <div class="info-title">SELECT A GAME TO START</div>
+                <div>Choose from the AI-generated ROMs on the left...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const games = [];
+        let selectedGame = null;
+        let isPlaying = false;
+        let animationId = null;
+        let gameState = null;
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Generate games every second
+        setInterval(() => {
+            generateNewGame();
+        }, 1000);
+
+        function generateNewGame() {
+            const gameTypes = ['Platform', 'Shooter', 'Puzzle', 'Racing', 'RPG', 'Action', 'Adventure', 'Fighter'];
+            const modTypes = ['Enhanced', 'Remix', 'Redux', 'Remastered', 'Turbo', 'Plus', 'EX', 'Ultra'];
+            const colors = ['Red', 'Blue', 'Green', 'Gold', 'Silver', 'Crystal', 'Shadow', 'Neon', 'Cyber', 'Retro'];
+            
+            const type = gameTypes[Math.floor(Math.random() * gameTypes.length)];
+            const mod = modTypes[Math.floor(Math.random() * modTypes.length)];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            
+            const game = {
+                id: Date.now(),
+                name: `${color} ${type} ${mod}`,
+                type: type,
+                size: `${Math.floor(Math.random() * 512 + 128)}KB`,
+                version: `v1.${Math.floor(Math.random() * 99)}`,
+                timestamp: new Date().toLocaleTimeString(),
+                color: getRandomColor()
+            };
+            
+            games.unshift(game);
+            if (games.length > 50) games.pop();
+            
+            updateGamesList();
+            updateGameCount();
+        }
+
+        function updateGamesList() {
+            const listEl = document.getElementById('gamesList');
+            listEl.innerHTML = games.map(game => `
+                <div class="game-item ${selectedGame?.id === game.id ? 'selected' : ''}" 
+                     onclick="selectGame(${game.id})">
+                    <div class="game-name">${game.name}</div>
+                    <div class="game-meta">
+                        ${game.type} | ${game.size} | ${game.version}<br>
+                        Generated: ${game.timestamp}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function selectGame(id) {
+            selectedGame = games.find(g => g.id === id);
+            updateGamesList();
+            updateGameInfo();
+            initGame();
+        }
+
+        function updateGameInfo() {
+            if (!selectedGame) return;
+            
+            const infoEl = document.getElementById('gameInfo');
+            infoEl.innerHTML = `
+                <div class="info-title">${selectedGame.name}</div>
+                <div>TYPE: ${selectedGame.type}</div>
+                <div>SIZE: ${selectedGame.size}</div>
+                <div>VERSION: ${selectedGame.version}</div>
+                <div>GENERATED: ${selectedGame.timestamp}</div>
+                <div style="margin-top: 10px;">STATUS: ${isPlaying ? 'RUNNING' : 'READY'}</div>
+            `;
+        }
+
+        function updateGameCount() {
+            document.getElementById('gameCount').textContent = `GAMES GENERATED: ${games.length}`;
+        }
+
+        function getRandomColor() {
+            return `hsl(${Math.random() * 360}, 70%, 50%)`;
+        }
+
+        function initGame() {
+            if (!selectedGame) return;
+            
+            gameState = {
+                player: { x: 256, y: 240, vx: 0, vy: 0, size: 20 },
+                enemies: [],
+                particles: [],
+                score: 0,
+                time: 0
+            };
+            
+            // Generate enemies based on game type
+            for (let i = 0; i < 5; i++) {
+                gameState.enemies.push({
+                    x: Math.random() * 512,
+                    y: Math.random() * 480,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                    size: 15,
+                    color: getRandomColor()
+                });
+            }
+            
+            renderGame();
+        }
+
+        function gameLoop() {
+            if (!isPlaying || !selectedGame) return;
+            
+            gameState.time++;
+            
+            // Update player
+            gameState.player.x += gameState.player.vx;
+            gameState.player.y += gameState.player.vy;
+            
+            // Boundary check
+            if (gameState.player.x < 0) gameState.player.x = 0;
+            if (gameState.player.x > 512) gameState.player.x = 512;
+            if (gameState.player.y < 0) gameState.player.y = 0;
+            if (gameState.player.y > 480) gameState.player.y = 480;
+            
+            // Update enemies
+            gameState.enemies.forEach(enemy => {
+                enemy.x += enemy.vx;
+                enemy.y += enemy.vy;
+                
+                if (enemy.x < 0 || enemy.x > 512) enemy.vx *= -1;
+                if (enemy.y < 0 || enemy.y > 480) enemy.vy *= -1;
+            });
+            
+            // Add particles
+            if (Math.random() < 0.1) {
+                gameState.particles.push({
+                    x: Math.random() * 512,
+                    y: Math.random() * 480,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: (Math.random() - 0.5) * 2,
+                    life: 50,
+                    color: selectedGame.color
+                });
+            }
+            
+            // Update particles
+            gameState.particles = gameState.particles.filter(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                return p.life > 0;
+            });
+            
+            gameState.score = Math.floor(gameState.time / 10);
+            
+            renderGame();
+            updateGameInfo();
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        function renderGame() {
+            if (!gameState) return;
+            
+            // Clear
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, 512, 480);
+            
+            // Grid
+            ctx.strokeStyle = '#00ff0020';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 512; i += 32) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, 480);
+                ctx.stroke();
+            }
+            for (let i = 0; i < 480; i += 32) {
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(512, i);
+                ctx.stroke();
+            }
+            
+            // Particles
+            gameState.particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / 50;
+                ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+            });
+            ctx.globalAlpha = 1;
+            
+            // Enemies
+            gameState.enemies.forEach(enemy => {
+                ctx.fillStyle = enemy.color;
+                ctx.beginPath();
+                ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+            
+            // Player
+            ctx.fillStyle = selectedGame.color;
+            ctx.fillRect(
+                gameState.player.x - gameState.player.size / 2,
+                gameState.player.y - gameState.player.size / 2,
+                gameState.player.size,
+                gameState.player.size
+            );
+            
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(
+                gameState.player.x - gameState.player.size / 2,
+                gameState.player.y - gameState.player.size / 2,
+                gameState.player.size,
+                gameState.player.size
+            );
+            
+            // HUD
+            ctx.fillStyle = '#00ff00';
+            ctx.font = '20px Courier New';
+            ctx.fillText(`SCORE: ${gameState.score}`, 10, 30);
+            ctx.fillText(`TIME: ${Math.floor(gameState.time / 60)}s`, 10, 60);
+        }
+
+        // Controls
+        document.getElementById('playBtn').onclick = () => {
+            if (!selectedGame) {
+                alert('SELECT A GAME FIRST');
+                return;
+            }
+            isPlaying = true;
+            gameLoop();
+        };
+
+        document.getElementById('pauseBtn').onclick = () => {
+            isPlaying = false;
+            if (animationId) cancelAnimationFrame(animationId);
+        };
+
+        document.getElementById('resetBtn').onclick = () => {
+            if (selectedGame) initGame();
+        };
+
+        document.getElementById('downloadBtn').onclick = () => {
+            if (!selectedGame) {
+                alert('SELECT A GAME FIRST');
+                return;
+            }
+            alert(`ROM DOWNLOAD: ${selectedGame.name}.sfc\nSIZE: ${selectedGame.size}`);
+        };
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (!gameState) return;
+            
+            const speed = 3;
+            switch(e.key) {
+                case 'ArrowUp': case 'w': gameState.player.vy = -speed; break;
+                case 'ArrowDown': case 's': gameState.player.vy = speed; break;
+                case 'ArrowLeft': case 'a': gameState.player.vx = -speed; break;
+                case 'ArrowRight': case 'd': gameState.player.vx = speed; break;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (!gameState) return;
+            
+            switch(e.key) {
+                case 'ArrowUp': case 'ArrowDown': case 'w': case 's': 
+                    gameState.player.vy = 0; break;
+                case 'ArrowLeft': case 'ArrowRight': case 'a': case 'd': 
+                    gameState.player.vx = 0; break;
+            }
+        });
+
+        // Update timestamp
+        setInterval(() => {
+            document.getElementById('timestamp').textContent = 
+                `SYSTEM TIME: ${new Date().toLocaleTimeString()}`;
+        }, 1000);
+
+        // Generate initial games
+        for (let i = 0; i < 5; i++) {
+            generateNewGame();
+        }
+    </script>
+</body>
+</html>
